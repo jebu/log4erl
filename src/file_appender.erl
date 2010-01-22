@@ -124,26 +124,19 @@ do_log(_Other, _State) ->
 rotate(#file_appender{fd = Fd, dir=Dir,  file_name=Fn, counter=Cntr, rotation=Rot, suffix=Suf, log_type=Ltype, level=Level, format=Format} = _S) ->
     file:close(Fd),
     ?LOG("Starting rotation~n"),
-    C = if
-	    Rot == 0 ->
-		0;
-	    Cntr >= Rot ->
-		1;
-	    true ->
-		Cntr+1
-	end,
+    rotate_file(Dir ++ "/" ++ Fn, Rot - 1, Suf),
     Src = Dir ++ "/" ++ Fn ++ "." ++ Suf,
-    Fname = case C of
-		0 ->
-		    Dir ++ "/" ++ Fn ++ "." ++ Suf;
-		_ ->
-		    Dir ++ "/" ++ Fn ++ "_" ++ integer_to_list(C) ++ "." ++ Suf
-	    end,
-    ?LOG2("Renaming file from ~p to ~p~n",[Src, Fname]),
-    file:rename(Src, Fname),
     {ok ,Fd2} = file:open(Src, ?FILE_OPTIONS_ROTATE),
-    State2 = #file_appender{dir = Dir, file_name = Fn, fd = Fd2, counter=C, log_type = Ltype, rotation = Rot, suffix=Suf, level=Level, format=Format},
+    State2 = #file_appender{dir = Dir, file_name = Fn, fd = Fd2, counter=Cntr, log_type = Ltype, rotation = Rot, suffix=Suf, level=Level, format=Format},
     {ok, State2}.
+
+rotate_file(FileBase, Index, Suffix) when Index > 0 ->
+  file:rename(FileBase ++ "_" ++ integer_to_list(Index) ++ "." ++ Suffix, 
+              FileBase ++ "_" ++ integer_to_list(Index + 1) ++ "." ++ Suffix),
+  rotate_file(FileBase, Index - 1, Suffix);
+rotate_file(FileBase, _Index, Suffix) ->
+  file:rename(FileBase ++ "." ++ Suffix, FileBase ++ "_1." ++ Suffix).
+
 
 % Check if the file needs to be rotated
 % ignore in case of if log type is set to time instead of size	    
